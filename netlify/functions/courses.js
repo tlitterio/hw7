@@ -63,7 +63,9 @@ exports.handler = async function(event) {
 
   // get the documents from the query
   let sections = sectionsQuery.docs
-
+  // create variables to total reviews and ratings for calculating average of both course and individual sections
+  let courseReviewAggregate = 0
+  let courseNumberOfReviews = 0
   // loop through the documents
   for (let i=0; i < sections.length; i++) {
     // get the document ID of the section
@@ -71,7 +73,6 @@ exports.handler = async function(event) {
 
     // get the data from the section
     let sectionData = sections[i].data()
-
     // ask Firebase for the lecturer with the ID provided by the section; hint: read "Retrieve One Document (when you know the Document ID)" in the reference
     let lecturerQuery = await db.collection('lecturers').doc(sectionData.lecturerId).get()
 
@@ -85,7 +86,36 @@ exports.handler = async function(event) {
     courseData.sections.push(sectionData)
 
     // 🔥 your code for the reviews/ratings goes here
-  }
+    // retrieve reviews for the sections based on sectionId
+    let reviewsQuery = await db.collection('reviews').where(`sectionId`, `==`, sectionId).get()
+    // get the data from the returned reviews firebase query above
+    let reviews = reviewsQuery.docs
+    //create reviews array
+    sectionData.reviews = []
+    //add reviews length for calculating average
+    courseNumberOfReviews += reviews.length
+    //section level aggregate for calculating average
+    let sectionReviewAggregate = 0
+    //iterate through reseults and add to courseData
+    for (let r=0;r<reviews.length;r++){
+      //get data from specific review document
+      let reviewData = reviews[r].data()
+      //sum review ratings for average calculation later
+      sectionReviewAggregate+=reviewData.rating
+      //fill sectionadata array with review data for returning
+      sectionData.reviews.push(reviewData)
+      //add in rating for course level average calculation later
+      courseReviewAggregate += reviewData.rating
+   }
+    // create and populate section level ratings information
+    sectionData.numberOfReviewsPerSection = reviews.length
+    // calculate section level average
+    sectionData.averageReviewPerSection = Math.round((sectionReviewAggregate/reviews.length)*100)/100
+ }
+  // create and populate course level ratings information
+  courseData.numberOfReviewsPerClass = courseNumberOfReviews
+  //calculate course level average calculation
+  courseData.averageReviewPerClass = Math.round((courseReviewAggregate/courseNumberOfReviews)*100)/100
 
   // return the standard response
   return {
